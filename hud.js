@@ -13,6 +13,10 @@ const FONT_SHADOW = '#2B2727';
 const HEADLINE_FONT = 'MsWilliamsShadow';
 document.fonts.load(`40px ${HEADLINE_FONT}`);
 
+//The longest headline line across all the games. Every game sizes its headline to fit this line,
+//so headlines are the same size (and line up) in every game. Update it if a new game has a longer line.
+const LONGEST_HEADLINE_LINE = "the disappearing man!";
+
 //Every LEVEL_EVERY points the game gets LEVEL_SPEEDUP faster, until it reaches MAX_CHAOS
 const LEVEL_SPEEDUP   = 0.25;
 const MAX_CHAOS       = 2.5;
@@ -25,15 +29,19 @@ let levelBannerUntil = 0;
 function hudLayout() {
   //Bigger on mobile since phones are viewed from closer up
   const ts = isMobile ? constrain(width * 0.075, 26, 46) : constrain(width * 0.045, 16, 35);
-  //Space between the text and the edge of the screen
+  //Space between the text and the edge of the screen (the scoreboard sits a little closer)
   const edge = ts * 1.5;
+  const scoreEdge = ts * 1.0;
+  //Scoreboard text is smaller than the headline
+  const scoreSize = ts * 0.7;
   return {
     ts,
     edge,
+    scoreSize,
     headTop:     edge,
     headBottom:  edge + ts * 1.25 * 2,                    //headline is two lines tall
-    scoreBottom: height - edge,
-    scoreTop:    height - edge - (ts - 5) * 1.25
+    scoreBottom: height - scoreEdge,
+    scoreTop:    height - scoreEdge - scoreSize * 1.25
   };
 }
 
@@ -42,8 +50,9 @@ function drawHeadline(words) {
   push();
   textFont(HEADLINE_FONT); noStroke(); fill(FONT_PINK); textAlign(CENTER, TOP);
   textSize(hud.ts);
-  //Shrink a long headline so it never sits closer to the sides than to the top
-  const widest = max(words.split('\n').map(line => textWidth(line)));
+  //Shrink the headline so the longest line of any game never sits closer to the sides than
+  //to the top. Every game measures the same longest line, so all headlines end up the same size.
+  const widest = max([LONGEST_HEADLINE_LINE, ...words.split('\n')].map(line => textWidth(line)));
   const room = width - hud.edge * 2;
   if (widest > room) textSize(hud.ts * room / widest);
   text(words, width / 2, hud.headTop);
@@ -53,7 +62,7 @@ function drawHeadline(words) {
 function drawScoreboard(words) {
   const hud = hudLayout();
   push();
-  textFont(scoreFont); noStroke(); fill('black'); textSize(hud.ts - 5); textAlign(CENTER, BOTTOM);
+  textFont(scoreFont); noStroke(); fill('black'); textSize(hud.scoreSize); textAlign(CENTER, BOTTOM);
   text(words.toUpperCase(), width / 2, hud.scoreBottom);
   pop();
 }
