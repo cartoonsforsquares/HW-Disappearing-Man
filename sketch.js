@@ -1,5 +1,6 @@
 let haystay, haybeat, disappear;
 let scoreFont;
+let bonkSound;
 
 const grid = 3; // 3x3 grid of holes
 const moleUpMin = 700;  // Ms a mole stays up before it's missed, minimum
@@ -27,10 +28,11 @@ const hayleyAspect = 2462 / 3208; // Hayley's real width-to-height ratio, so she
 // before setup() runs, so no async/await is needed here.
 
 function preload() {
-  haystay = loadImage("assets/Hay_Stay.png");
-  haybeat = loadImage("assets/Hay_Beat.png");
-  disappear = loadImage("assets/Disappear.png");
+  haystay = loadImage("assets/Hay_Stay.webp");
+  haybeat = loadImage("assets/Hay_Beat.webp");
+  disappear = loadImage("assets/Disappear.webp");
   scoreFont = loadFont("assets/GeistMono-Bold.ttf");
+  bonkSound = loadSoundEffect("assets/bonk.wav"); // see hud.js
 }
 
 function setup() {
@@ -94,6 +96,15 @@ function layout() {
 
 function draw() {
   background(CREAM); // Same background as every game (see hud.js)
+
+  // Wait on the "Tap to play" screen until the first tap or click (see hud.js)
+  if (!started) {
+    drawHoles();
+    drawHUD();
+    drawStartScreen();
+    drawHayley();
+    return;
+  }
 
   if (gameOver) {
     drawHoles();
@@ -178,6 +189,9 @@ function drawHayley() {
 
 // Shared whack/retry handling for both mouse clicks and touch taps.
 function handleWhack(px, py) {
+  // The first tap only starts the game
+  if (handleStartTap(attemptRetry)) return;
+
   if (gameOver) {
     attemptRetry();
     return;
@@ -190,6 +204,8 @@ function handleWhack(px, py) {
     if (h.active && dist(px, py, h.x, h.y) < whackRadius) {
       h.active = false;
       score++;
+      // A slightly different pitch each time so repeated bonks do not sound robotic
+      playSoundEffect(bonkSound, 1, random(0.9, 1.15));
       return;
     }
   }

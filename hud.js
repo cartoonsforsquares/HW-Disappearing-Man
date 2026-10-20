@@ -67,6 +67,71 @@ function drawScoreboard(words) {
   pop();
 }
 
+//Each game waits on a "Tap to play" screen first. Browsers keep sound off until the player taps
+//or clicks, so this first tap is what turns the sound on (moving the mouse does not count).
+let started = false;
+
+function drawStartScreen() {
+  const hud = hudLayout();
+  push();
+  textFont(HEADLINE_FONT); noStroke(); fill(FONT_PINK); textSize(hud.ts * 2); textAlign(CENTER, CENTER);
+  const words = isMobile ? "Tap to play" : "Click to play";
+  //Shrink it if needed so it keeps the same side space as the headline
+  const room = width - hud.edge * 2;
+  if (textWidth(words) > room) textSize(hud.ts * 2 * room / textWidth(words));
+  text(words, width / 2, height / 2);
+  pop();
+}
+
+//Call at the top of each game's tap/click handler. On the very first tap it starts the game
+//(running onStart to reset the timers) and returns true, so that tap does nothing else.
+function handleStartTap(onStart) {
+  if (started) return false;
+  started = true;
+  unlockSound();
+  onStart();
+  return true;
+}
+
+//Sound effects use the browser's Web Audio API directly, so no extra sound library is needed
+const soundContext = new (window.AudioContext || window.webkitAudioContext)();
+
+function unlockSound() {
+  if (soundContext.state !== 'running') soundContext.resume();
+  //Older iPhones also need a sound to be started during the tap itself, so play a silent one
+  const silence = soundContext.createBufferSource();
+  silence.buffer = soundContext.createBuffer(1, 1, 22050);
+  silence.connect(soundContext.destination);
+  silence.start(0);
+}
+//Any tap, click, or key press unlocks sound, even before the game's own handlers run
+for (const type of ['pointerdown', 'touchend', 'mousedown', 'keydown']) {
+  window.addEventListener(type, unlockSound, { capture: true, passive: true });
+}
+
+//Starts loading a sound file and returns an object that holds it once it is ready
+function loadSoundEffect(path) {
+  const sound = { buffer: null };
+  fetch(path)
+    .then(response => response.arrayBuffer())
+    .then(data => soundContext.decodeAudioData(data))
+    .then(buffer => { sound.buffer = buffer; })
+    .catch(() => {}); //a missing sound should never stop the game
+  return sound;
+}
+
+//Plays a sound once. rate changes the pitch slightly (1 = normal) so repeats do not sound robotic.
+function playSoundEffect(sound, volume = 1, rate = 1) {
+  if (!sound.buffer || soundContext.state !== 'running') return;
+  const source = soundContext.createBufferSource();
+  source.buffer = sound.buffer;
+  source.playbackRate.value = rate;
+  const gain = soundContext.createGain();
+  gain.gain.value = volume;
+  source.connect(gain).connect(soundContext.destination);
+  source.start();
+}
+
 //Shown once the player has missed too many. Click or tap anywhere to retry.
 function drawRetryScreen() {
   const hud = hudLayout();
