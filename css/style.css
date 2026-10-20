@@ -4,10 +4,21 @@
     box-sizing: border-box;
 }
 
+/* Ms.Williams Shadow is a color font, so it is loaded here instead of with p5's loadFont() */
+@font-face {
+    font-family: 'MsWilliamsShadow';
+    src: url('../fonts/MsWilliamsShadow-Regular.woff2') format('woff2');
+    font-display: block;
+}
+
 body {
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: #f0f0f0;
+    background: #FBF5E6;
+}
+
+canvas {
+    display: block;
 }

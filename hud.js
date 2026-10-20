@@ -1,0 +1,99 @@
+
+//Shared look and difficulty for every game (headline, scoreboard, retry screen, speed-ups)
+//This exact file is copied into each game, so copy any change here to the other games too
+//Each game's sketch.js provides: isMobile, score, scoreFont, and LEVEL_EVERY
+
+//Colors taken from the Ms.Williams Shadow font's own palette
+const CREAM       = '#FBF5E6';
+const FONT_PINK   = '#F49AC1';
+const FONT_SHADOW = '#2B2727';
+
+//Ms.Williams Shadow is a color font, so it is loaded with CSS (see css/style.css) instead of
+//loadFont(), which would flatten it to one color. p5 can still use it by its CSS name.
+const HEADLINE_FONT = 'MsWilliamsShadow';
+document.fonts.load(`40px ${HEADLINE_FONT}`);
+
+//Every LEVEL_EVERY points the game gets LEVEL_SPEEDUP faster, until it reaches MAX_CHAOS
+const LEVEL_SPEEDUP   = 0.25;
+const MAX_CHAOS       = 2.5;
+const LEVEL_BANNER_MS = 1200; //how long the "Faster!" banner stays on screen
+
+let lastChaos = 1;
+let levelBannerUntil = 0;
+
+//Text size and positions, worked out from the screen size so every game lines up the same way
+function hudLayout() {
+  //Bigger on mobile since phones are viewed from closer up
+  const ts = isMobile ? constrain(width * 0.075, 26, 46) : constrain(width * 0.045, 16, 35);
+  //Space between the text and the edge of the screen
+  const edge = ts * 1.5;
+  return {
+    ts,
+    edge,
+    headTop:     edge,
+    headBottom:  edge + ts * 1.25 * 2,                    //headline is two lines tall
+    scoreBottom: height - edge,
+    scoreTop:    height - edge - (ts - 5) * 1.25
+  };
+}
+
+function drawHeadline(words) {
+  const hud = hudLayout();
+  push();
+  textFont(HEADLINE_FONT); noStroke(); fill(FONT_PINK); textAlign(CENTER, TOP);
+  textSize(hud.ts);
+  //Shrink a long headline so it never sits closer to the sides than to the top
+  const widest = max(words.split('\n').map(line => textWidth(line)));
+  const room = width - hud.edge * 2;
+  if (widest > room) textSize(hud.ts * room / widest);
+  text(words, width / 2, hud.headTop);
+  pop();
+}
+
+function drawScoreboard(words) {
+  const hud = hudLayout();
+  push();
+  textFont(scoreFont); noStroke(); fill('black'); textSize(hud.ts - 5); textAlign(CENTER, BOTTOM);
+  text(words.toUpperCase(), width / 2, hud.scoreBottom);
+  pop();
+}
+
+//Shown once the player has missed too many. Click or tap anywhere to retry.
+function drawRetryScreen() {
+  const hud = hudLayout();
+  push();
+  textFont(HEADLINE_FONT); noStroke(); fill(FONT_PINK); textSize(hud.ts * 2); textAlign(CENTER, CENTER);
+  text("Retry?", width / 2, height / 2);
+  pop();
+}
+
+//Level 0 for the first LEVEL_EVERY points, level 1 for the next, and so on
+function level() {
+  return floor(score / LEVEL_EVERY);
+}
+
+//How much faster the game is than at the start: 1 = normal speed, MAX_CHAOS = fastest
+function chaos() {
+  return min(1 + level() * LEVEL_SPEEDUP, MAX_CHAOS);
+}
+
+//Call once per frame; starts the banner whenever the game gets faster
+function checkLevelUp() {
+  if (chaos() > lastChaos) levelBannerUntil = millis() + LEVEL_BANNER_MS;
+  lastChaos = chaos();
+}
+
+function drawLevelBanner() {
+  if (millis() > levelBannerUntil) return;
+  const hud = hudLayout();
+  push();
+  textFont(HEADLINE_FONT); noStroke(); fill(FONT_PINK); textSize(hud.ts * 1.6); textAlign(CENTER, CENTER);
+  text(chaos() >= MAX_CHAOS ? "Max chaos!" : "Faster!", width / 2, height / 2);
+  pop();
+}
+
+//Call from each game's retry so the next round starts at normal speed
+function resetLevels() {
+  lastChaos = 1;
+  levelBannerUntil = 0;
+}

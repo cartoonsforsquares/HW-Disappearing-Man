@@ -1,14 +1,15 @@
 let haystay, haybeat, disappear;
-let moreFont, scoreFont;
+let scoreFont;
 
 const grid = 3; // 3x3 grid of holes
-const headerClearance = 90; // Vertical space reserved for the headline text at the top
 const moleUpMin = 700;  // Ms a mole stays up before it's missed, minimum
 const moleUpMax = 2000; // Ms a mole stays up before it's missed, maximum
 const spawnInterval = 850; // Ms between spawn attempts
 const whackRadius = 100; // How close a click/tap needs to be to a mole to hit it
 const beatDuration = 150; // Ms hayley shows her hammer-down pose after a hit
 const maxMissed = 10; // Game stops once this many moles have gone unhit
+const LEVEL_EVERY = 20; // Game speeds up every 20 hits (see hud.js)
+const moleUpFloor = 450; // Ms a mole always stays up, however fast the game gets, so it can still be hit
 const moleFadeDuration = 200; // Ms the mole takes to fade in when it appears and fade out when it hides
 
 let holes = []; // Each hole tracks { x, y, active, appearedAt, hideAt }
@@ -22,15 +23,14 @@ let beatUntil = 0; // Timestamp until which hayley shows her hammer-down pose
 let holeSize, hayleySize, moleSize;
 const hayleyAspect = 2462 / 3208; // Hayley's real width-to-height ratio, so she never looks squished
 
-// P5.js v2 loads assets as promises, so preload must be async and await each
-// one — otherwise setup()/draw() can start before fonts/images are ready.
+// index.html loads p5.js v1.9, where preload waits for every load call on its own
+// before setup() runs, so no async/await is needed here.
 
-async function preload() {
-  haystay = await loadImage("assets/Hay_Stay.png");
-  haybeat = await loadImage("assets/Hay_Beat.png");
-  disappear = await loadImage("assets/Disappear.png");
-  moreFont  = await loadFont("assets/Chubbo-BoldItalic.ttf");
-  scoreFont = await loadFont("assets/GeistMono-Bold.ttf");
+function preload() {
+  haystay = loadImage("assets/Hay_Stay.png");
+  haybeat = loadImage("assets/Hay_Beat.png");
+  disappear = loadImage("assets/Disappear.png");
+  scoreFont = loadFont("assets/GeistMono-Bold.ttf");
 }
 
 function setup() {
@@ -58,12 +58,15 @@ function windowResized() {
 
 // Recomputes the 3x3 grid of hole positions and every sprite's size to fit the current canvas.
 function layout() {
-  const availH = height - headerClearance;
+  // The grid fits in the space between the headline and the scoreboard
+  const hud = hudLayout();
+  const areaTop = hud.headBottom + hud.ts * 0.5;
+  const availH = hud.scoreTop - hud.ts * 0.5 - areaTop;
   const gridSize = min(width * 0.85, availH * 0.85);
   const cell = gridSize / grid;
 
   const left = width / 2 - gridSize / 2;
-  const top  = headerClearance + (availH - gridSize) / 2;
+  const top  = areaTop + (availH - gridSize) / 2;
 
   holeSize   = cell * 0.7;
   moleSize   = cell * 0.5;
@@ -90,7 +93,7 @@ function layout() {
 }
 
 function draw() {
-  background('pink'); // Same background as the parachute game
+  background(CREAM); // Same background as every game (see hud.js)
 
   if (gameOver) {
     drawHoles();
@@ -100,22 +103,32 @@ function draw() {
     return;
   }
 
-  if (millis() - lastSpawnTime > spawnInterval) {
-    trySpawnMole();
+  checkLevelUp();
+
+  // Moles pop up more often as the game speeds up, and from level 3 several can pop up at once
+  if (millis() - lastSpawnTime > spawnInterval / chaos()) {
+    const molesAtOnce = 1 + floor(level() / 3);
+    for (let i = 0; i < molesAtOnce; i++) trySpawnMole();
     lastSpawnTime = millis();
   }
 
   updateMoles();
   drawHoles();
   drawHUD();
+  drawLevelBanner();
   drawHayley();
+}
+
+function drawHUD() {
+  drawHeadline("Help Hayley whack\nthe disappearing man!");
+  drawScoreboard(`Hit: ${score}   Missed: ${missed}`);
 }
 
 // Draws every hole, and the mole fading in/out of it if that hole is active.
 function drawHoles() {
   noStroke();
   for (const h of holes) {
-    fill('black');
+    fill(FONT_PINK); // Same pink as the headline font (see hud.js)
     ellipse(h.x, h.y, holeSize, holeSize * 0.55);
     if (h.active) {
       // Fade in just after appearing, fade out just before hiding — whichever is smaller wins
@@ -138,7 +151,8 @@ function trySpawnMole() {
   const h = random(empty);
   h.active = true;
   h.appearedAt = millis();
-  h.hideAt = millis() + random(moleUpMin, moleUpMax);
+  // Moles hide sooner as the game speeds up, but never quicker than moleUpFloor
+  h.hideAt = millis() + max(moleUpFloor, random(moleUpMin, moleUpMax) / chaos());
 }
 
 // Hides any mole that has been up too long and counts it as missed.
@@ -160,37 +174,7 @@ function drawHayley() {
   image(pose, mouseX, mouseY, hayleySize * hayleyAspect, hayleySize);
 }
 
-function drawHUD() {
-  // Responsive text — bumped up on mobile since phones are viewed from closer up
-  const ts = isMobile
-    ? constrain(width * 0.075, 26, 46)
-    : constrain(width * 0.045, 16, 35);
-
-  push();
-  textFont(moreFont);
-  fill('black'); noStroke(); textSize(ts); textAlign(CENTER, TOP);
-  text("Help Hayley whack\nthe disappearing man!", width / 2, ts * 0.6);
-  pop();
-
-  push();
-  textFont(scoreFont);
-  fill('black'); noStroke(); textSize(ts - 5); textAlign(CENTER, BOTTOM);
-  text(`HIT: ${score}   MISSED: ${missed}`, width / 2, height - ts * 0.8);
-  pop();
-}
-
-// Shown once missed reaches maxMissed. Click/tap anywhere to retry.
-function drawRetryScreen() {
-  const ts = isMobile
-    ? constrain(width * 0.075, 26, 46)
-    : constrain(width * 0.045, 16, 35);
-
-  push();
-  textFont(moreFont);
-  fill('pink'); stroke('black'); strokeWeight(5); textSize(ts * 2); textAlign(CENTER, CENTER);
-  text("Retry?", width / 2, height / 2);
-  pop();
-}
+// The headline, scoreboard, retry screen, and speed-ups live in hud.js, shared by every game
 
 // Shared whack/retry handling for both mouse clicks and touch taps.
 function handleWhack(px, py) {
@@ -216,6 +200,7 @@ function attemptRetry() {
   score = 0;
   missed = 0;
   gameOver = false;
+  resetLevels();
   for (const h of holes) h.active = false;
   lastSpawnTime = millis();
 }
